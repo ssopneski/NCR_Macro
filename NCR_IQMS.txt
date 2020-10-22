@@ -1,0 +1,74 @@
+Sub NCR_IQMS()
+
+'Open IQMS export file
+Dim sFilePath, sFileName, sMacroFileName As String
+sFilePath = Application.GetOpenFilename("Excel Files (*.xls),*.xls", , "Please select Excel file...")
+Workbooks.Open Filename:=sFilePath
+sFileName = ActiveWorkbook.Name
+
+'Clear IQMS MRB Log Excel file Raw Data sheet and copy information over
+Workbooks("IQMS MRB Open & Closed Log.xlsm").Activate
+Sheets("Raw Data").Select
+Worksheets("Raw Data").Cells.Clear
+Workbooks(sFileName).Activate
+Range("A1", "N" & Range("A1").End(xlDown).Row).Copy Workbooks("IQMS MRB Open & Closed Log.xlsm").Sheets("Raw Data").Range("A1")
+    
+'Remove duplicates from ID column
+Workbooks("IQMS MRB Open & Closed Log.xlsm").Sheets("Raw Data").Activate
+Range("A1", "N" & Range("A1").End(xlDown).Row).RemoveDuplicates Columns:=1, Header:=xlYes
+
+'Insert Issue Month, Close Month, Status, and Aging columns
+Columns("H:H").Insert Shift:=xlToRight, CopyOrigin:=xlFormatFromLeftOrAbove
+Columns("J:L").Insert Shift:=xlToRight, CopyOrigin:=xlFormatFromLeftOrAbove
+Range("H1").Value = "Issue Month"
+Range("J1").Value = "Close Month"
+Range("K1").Value = "Status"
+Range("L1").Value = "Aging"
+
+'Populate Issue & Close Month columns
+Range("G2", "G" & Range("A1").End(xlDown).Row).Copy (Sheets("Raw Data").Range("H2"))
+Range("I2", "I" & Range("A1").End(xlDown).Row).Copy (Sheets("Raw Data").Range("J2"))
+
+'Remove "'" from all dates
+With Range("G:J")
+    .NumberFormat = "General"
+    .Value = .Value
+End With
+Range("H:H,J:J").NumberFormat = "mm/yyyy"
+
+'Populate Status column with "Open" or "Closed"
+Range("K2", "K" & Range("A1").End(xlDown).Row).Formula = "=IF(I2="""",""Open"",""Closed"")"
+
+'Populate Aging column
+For i = 2 To Range("A1").End(xlDown).Row
+    If IsEmpty(Range("I" & i)) = True Then
+        Range("L" & i).Formula = "=TODAY()-G" & i
+    Else
+        Range("L" & i) = Range("I" & i) - Range("G" & i)
+    End If
+Next
+
+'Delete all unnecessary columns
+Range("A:A,C:C,E:E,F:F,M:M,N:N,O:O").EntireColumn.Delete
+Rows(1).Font.Bold = True
+
+'Filter only Open NCRs and copy to Open tab
+Sheets("Open").Range("A2", "I" & Sheets("Open").Range("A1").End(xlDown).Row).ClearContents
+Columns("A:K").AutoFilter Field:=7, Criteria1:="Open"
+Range("A2", "D" & Range("A1").End(xlDown).Row).Copy Sheets("Open").Range("A2")
+Range("H2", "K" & Range("A1").End(xlDown).Row).Copy Sheets("Open").Range("E2")
+Sheets("Open").Columns("A:I").AutoFit
+Sheets("Open").Rows(1).Font.Bold = True
+
+'Filter only Closed NCRs and copy to Closed tab
+Sheets("Closed").Range("A2", "K" & Sheets("Closed").Range("A1").End(xlDown).Row).ClearContents
+Columns("A:K").AutoFilter Field:=7, Criteria1:="Closed"
+Range("A1", "K" & Range("A1").End(xlDown).Row).Copy Sheets("Closed").Range("A1")
+Sheets("Closed").Columns("A:K").AutoFit
+Sheets("Closed").Rows(1).Font.Bold = True
+Sheets("Raw Data").ShowAllData
+
+'Close export workbook
+Workbooks(sFileName).Close
+
+End Sub
